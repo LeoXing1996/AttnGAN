@@ -8,3 +8,4 @@ code/miscc/*.pyc
 code/*.sh
 code/*.bash
 code/*.ipynb
+*.out
