@@ -250,8 +250,12 @@ class TextDataset(data.Dataset):
 
     def load_class_id(self, data_dir, total_num):
         if os.path.isfile(data_dir + '/class_info.pickle'):
-            with open(data_dir + '/class_info.pickle', 'rb') as f:
-                class_id = pickle.load(f)
+            try:
+                with open(data_dir + '/class_info.pickle', 'rb') as f:
+                    class_id = pickle.load(f)
+            except UnicodeDecodeError:
+                with open(data_dir + '/class_info.pickle', 'rb') as f:
+                    class_id = pickle.load(f, encoding='latin1')
         else:
             class_id = np.arange(total_num)
         return class_id

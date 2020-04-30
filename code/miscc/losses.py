@@ -173,7 +173,7 @@ def generator_loss(netsD, image_encoder, fake_imgs, real_labels,
         features = netsD[i](fake_imgs[i])
         cond_logits = netsD[i].COND_DNET(features, sent_emb)
         cond_errG = nn.BCELoss()(cond_logits, real_labels)
-        if netsD[i].UNCOND_DNET is  not None:
+        if netsD[i].UNCOND_DNET is not None:
             logits = netsD[i].UNCOND_DNET(features)
             errG = nn.BCELoss()(logits, real_labels)
             g_loss = errG + cond_errG
@@ -181,7 +181,8 @@ def generator_loss(netsD, image_encoder, fake_imgs, real_labels,
             g_loss = cond_errG
         errG_total += g_loss
         # err_img = errG_total.data[0]
-        logs += 'g_loss%d: %.2f ' % (i, g_loss.data[0])
+        # logs += 'g_loss%d: %.2f ' % (i, g_loss.data[0])
+        logs += 'g_loss%d: %.2f ' % (i, g_loss.item())
 
         # Ranking loss
         if i == (numDs - 1):
@@ -202,7 +203,8 @@ def generator_loss(netsD, image_encoder, fake_imgs, real_labels,
             # err_sent = err_sent + s_loss.data[0]
 
             errG_total += w_loss + s_loss
-            logs += 'w_loss: %.2f s_loss: %.2f ' % (w_loss.data[0], s_loss.data[0])
+            # logs += 'w_loss: %.2f s_loss: %.2f ' % (w_loss.data[0], s_loss.data[0])
+            logs += 'w_loss: %.2f s_loss: %.2f ' % (w_loss.item(), s_loss.item())
     return errG_total, logs
 
 
