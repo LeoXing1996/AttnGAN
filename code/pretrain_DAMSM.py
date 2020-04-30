@@ -34,6 +34,8 @@ sys.path.append(dir_path)
 
 
 UPDATE_INTERVAL = 200
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a DAMSM network')
     parser.add_argument('--cfg', dest='cfg_file',
@@ -63,7 +65,6 @@ def train(dataloader, cnn_model, rnn_model, batch_size,
 
         imgs, captions, cap_lens, \
             class_ids, keys = prepare_data(data)
-
 
         # words_features: batch_size x nef x 17 x 17
         # sent_code: batch_size x nef
@@ -136,8 +137,7 @@ def evaluate(dataloader, cnn_model, rnn_model, batch_size):
     s_total_loss = 0
     w_total_loss = 0
     for step, data in enumerate(dataloader, 0):
-        real_imgs, captions, cap_lens, \
-                class_ids, keys = prepare_data(data)
+        real_imgs, captions, cap_lens, class_ids, keys = prepare_data(data)
 
         words_features, sent_code = cnn_model(real_imgs[-1])
         # nef = words_features.size(1)
@@ -283,8 +283,7 @@ if __name__ == "__main__":
             if lr > cfg.TRAIN.ENCODER_LR/10.:
                 lr *= 0.98
 
-            if (epoch % cfg.TRAIN.SNAPSHOT_INTERVAL == 0 or
-                epoch == cfg.TRAIN.MAX_EPOCH):
+            if (epoch % cfg.TRAIN.SNAPSHOT_INTERVAL == 0 or epoch == cfg.TRAIN.MAX_EPOCH):
                 torch.save(image_encoder.state_dict(),
                            '%s/image_encoder%d.pth' % (model_dir, epoch))
                 torch.save(text_encoder.state_dict(),
