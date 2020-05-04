@@ -141,19 +141,24 @@ def discriminator_loss(netD, real_imgs, fake_imgs, conditions,
     # loss
     #
     cond_real_logits = netD.COND_DNET(real_features, conditions)
-    cond_real_errD = nn.BCELoss()(cond_real_logits, real_labels)
+    # cond_real_errD = nn.BCELoss()(cond_real_logits, real_labels)
+    cond_real_errD = nn.BCEWithLogitsLoss()(cond_real_logits, real_labels)
     cond_fake_logits = netD.COND_DNET(fake_features, conditions)
-    cond_fake_errD = nn.BCELoss()(cond_fake_logits, fake_labels)
+    # cond_fake_errD = nn.BCELoss()(cond_fake_logits, fake_labels)
+    cond_fake_errD = nn.BCEWithLogitsLoss()(cond_fake_logits, fake_labels)
     #
     batch_size = real_features.size(0)
     cond_wrong_logits = netD.COND_DNET(real_features[:(batch_size - 1)], conditions[1:batch_size])
-    cond_wrong_errD = nn.BCELoss()(cond_wrong_logits, fake_labels[1:batch_size])
+    # cond_wrong_errD = nn.BCELoss()(cond_wrong_logits, fake_labels[1:batch_size])
+    cond_wrong_errD = nn.BCEWithLogitsLoss()(cond_wrong_logits, fake_labels[1:batch_size])
 
     if netD.UNCOND_DNET is not None:
         real_logits = netD.UNCOND_DNET(real_features)
         fake_logits = netD.UNCOND_DNET(fake_features)
-        real_errD = nn.BCELoss()(real_logits, real_labels)
-        fake_errD = nn.BCELoss()(fake_logits, fake_labels)
+        # real_errD = nn.BCELoss()(real_logits, real_labels)
+        # fake_errD = nn.BCELoss()(fake_logits, fake_labels)
+        real_errD = nn.BCEWithLogitsLoss()(real_logits, real_labels)
+        fake_errD = nn.BCEWithLogitsLoss()(fake_logits, fake_labels)
         errD = ((real_errD + cond_real_errD) / 2. +
                 (fake_errD + cond_fake_errD + cond_wrong_errD) / 3.)
     else:
@@ -169,13 +174,16 @@ def generator_loss(netsD, image_encoder, fake_imgs, real_labels,
     logs = ''
     # Forward
     errG_total = 0
+    log_dict = {}
     for i in range(numDs):
         features = netsD[i](fake_imgs[i])
         cond_logits = netsD[i].COND_DNET(features, sent_emb)
-        cond_errG = nn.BCELoss()(cond_logits, real_labels)
+        # cond_errG = nn.BCELoss()(cond_logits, real_labels)
+        cond_errG = nn.BCEWithLogitsLoss()(cond_logits, real_labels)
         if netsD[i].UNCOND_DNET is not None:
             logits = netsD[i].UNCOND_DNET(features)
-            errG = nn.BCELoss()(logits, real_labels)
+            # errG = nn.BCELoss()(logits, real_labels)
+            errG = nn.BCEWithLogitsLoss()(logits, real_labels)
             g_loss = errG + cond_errG
         else:
             g_loss = cond_errG
@@ -183,6 +191,8 @@ def generator_loss(netsD, image_encoder, fake_imgs, real_labels,
         # err_img = errG_total.data[0]
 
         logs += 'g_loss%d: %.2f ' % (i, g_loss.item())
+        log_name = 'g_loss_%d' % i
+        log_dict[log_name] = g_loss.item()
 
         # Ranking loss
         if i == (numDs - 1):
@@ -204,8 +214,10 @@ def generator_loss(netsD, image_encoder, fake_imgs, real_labels,
 
             errG_total += w_loss + s_loss
             logs += 'w_loss: %.2f s_loss: %.2f ' % (w_loss.item(), s_loss.item())
+            log_dict['w_loss'] = w_loss.item()
+            log_dict['s_loss'] = s_loss.item()
 
-    return errG_total, logs
+    return errG_total, logs, log_dict
 
 
 ##################################################################

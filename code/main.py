@@ -27,6 +27,10 @@ def parse_args():
                         help='optional config file',
                         default='cfg/bird_attn2.yml', type=str)
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=-1)
+    parser.add_argument('--name', type=str)
+    parser.add_argument('--no_time', action='store_true')
+    parser.add_argument('--apex', action='store_true')
+    parser.add_argument('--opt_level', type=str, default='O1')
     parser.add_argument('--data_dir', dest='data_dir', type=str, default='')
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     args = parser.parse_args()
@@ -95,8 +99,9 @@ if __name__ == "__main__":
 
     if args.data_dir != '':
         cfg.DATA_DIR = args.data_dir
-    print('Using config:')
-    pprint.pprint(cfg)
+
+    cfg.APEX = args.apex
+    cfg.OPT_LEVEL = args.opt_level
 
     if not cfg.TRAIN.FLAG:
         args.manualSeed = 100
@@ -108,10 +113,16 @@ if __name__ == "__main__":
     if cfg.CUDA:
         torch.cuda.manual_seed_all(args.manualSeed)
 
-    now = datetime.datetime.now(dateutil.tz.tzlocal())
-    timestamp = now.strftime('%Y_%m_%d_%H_%M_%S')
-    output_dir = '../output/%s_%s_%s' % \
-        (cfg.DATASET_NAME, cfg.CONFIG_NAME, timestamp)
+    name = args.name if args.name else cfg.CONFIG_NAME
+    output_dir = '../output/%s_%s' % (cfg.DATASET_NAME, name)
+    if os.path.exists(output_dir) or not args.no_time:
+        now = datetime.datetime.now(dateutil.tz.tzlocal())
+        timestamp = now.strftime('%Y_%m_%d_%H_%M_%S')
+        output_dir += '_' + timestamp
+    cfg.EXP_NAME = output_dir.split('/')[-1]
+
+    print('Using config:')
+    pprint.pprint(cfg)
 
     split_dir, bshuffle = 'train', True
     if not cfg.TRAIN.FLAG:

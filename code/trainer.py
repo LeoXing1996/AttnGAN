@@ -24,6 +24,8 @@ import time
 import numpy as np
 import sys
 
+import wandb
+
 
 # ################# Text to image task############################ #
 class condGANTrainer(object):
@@ -130,6 +132,19 @@ class condGANTrainer(object):
                 netsD[i].cuda()
         return [text_encoder, image_encoder, netG, netsD, epoch]
 
+    def apply_apex(self, text_encoder, image_encoder, netG, netsD, optimizerG, optimizersD):
+        if cfg.APEX:
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+            num_loss = cfg.TREE.BRANCH_NUM + 1  # D * branch_num + G
+            [text_encoder, image_encoder, netG, *netsD], [optimizerG, *optimizersD] = \
+                amp.initialize([text_encoder, image_encoder, netG, *netsD], [optimizerG, *optimizersD],
+                               num_losses=num_loss, opt_level=cfg.OPT_LEVEL)
+            # return text_encoder, image_encoder, netG, netsD, optimizerG, optimizersD
+        return text_encoder, image_encoder, netG, netsD, optimizerG, optimizersD
+
     def define_optimizers(self, netG, netsD):
         optimizersD = []
         num_Ds = len(netsD)
@@ -217,9 +232,18 @@ class condGANTrainer(object):
             im.save(fullpath)
 
     def train(self):
+        wandb.init(name=cfg.EXP_NAME, project='AttnGAN', config=cfg, dir='../logs')
+
         text_encoder, image_encoder, netG, netsD, start_epoch = self.build_models()
-        avg_param_G = copy_G_params(netG)
         optimizerG, optimizersD = self.define_optimizers(netG, netsD)
+        text_encoder, image_encoder, netG, netsD, optimizerG, optimizersD =  \
+            self.apply_apex(text_encoder, image_encoder, netG, netsD, optimizerG, optimizersD)
+        # add watch
+        wandb.watch(netG)
+        for D in netsD:
+            wandb.watch(D)
+
+        avg_param_G = copy_G_params(netG)
         real_labels, fake_labels, match_labels = self.prepare_labels()
 
         batch_size = self.batch_size
@@ -229,6 +253,7 @@ class condGANTrainer(object):
         if cfg.CUDA:
             noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
 
+        log_dict = {}
         gen_iterations = 0
         # gen_iterations = start_epoch * self.num_batches
         for epoch in range(start_epoch, self.max_epoch):
@@ -272,10 +297,17 @@ class condGANTrainer(object):
                     errD = discriminator_loss(netsD[i], imgs[i], fake_imgs[i],
                                               sent_emb, real_labels, fake_labels)
                     # backward and update parameters
-                    errD.backward()
+                    if cfg.APEX:
+                        from apex import amp
+                        with amp.scale_loss(errD, optimizersD[i], loss_id=i) as errD_scaled:
+                            errD_scaled.backward()
+                    else:
+                        errD.backward()
                     optimizersD[i].step()
                     errD_total += errD
                     D_logs += 'errD%d: %.2f ' % (i, errD.item())
+                    log_name = 'errD_{}'.format(i)
+                    log_dict[log_name] = errD.item()
 
                 #######################################################
                 # (4) Update G network: maximize log(D(G(z)))
@@ -287,20 +319,29 @@ class condGANTrainer(object):
                 # do not need to compute gradient for Ds
                 # self.set_requires_grad_value(netsD, False)
                 netG.zero_grad()
-                errG_total, G_logs = \
+                errG_total, G_logs, G_log_dict = \
                     generator_loss(netsD, image_encoder, fake_imgs, real_labels,
                                    words_embs, sent_emb, match_labels, cap_lens, class_ids)
                 kl_loss = KL_loss(mu, logvar)
                 errG_total += kl_loss
                 G_logs += 'kl_loss: %.2f ' % kl_loss.item()
+                log_dict.update(G_log_dict)
+                log_dict['kl_loss'] = kl_loss.item()
                 # backward and update parameters
-                errG_total.backward()
+                if cfg.APEX:
+                    from apex import amp
+                    with amp.scale_loss(errG_total, optimizerG, loss_id=len(netsD)) as errG_scaled:
+                        errG_scaled.backward()
+                else:
+                    errG_total.backward()
                 optimizerG.step()
                 for p, avg_p in zip(netG.parameters(), avg_param_G):
                     avg_p.mul_(0.999).add_(0.001, p.data)
 
+                wandb.log(log_dict)
                 if gen_iterations % 100 == 0:
                     print(D_logs + '\n' + G_logs)
+                    wandb.save('logs.ckpt')
                 # save images
                 if gen_iterations % 1000 == 0:
                     backup_para = copy_G_params(netG)

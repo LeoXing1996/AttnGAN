@@ -12,10 +12,13 @@ cfg = __C
 # Dataset name: flowers, birds
 __C.DATASET_NAME = 'birds'
 __C.CONFIG_NAME = ''
+__C.EXP_NAME = ''
 __C.DATA_DIR = ''
 __C.GPU_ID = 0
 __C.CUDA = True
 __C.WORKERS = 6
+__C.APEX = True  # whether apply mixed precision training
+__C.OPT_LEVEL = 'O1'
 
 __C.RNN_TYPE = 'LSTM'   # 'GRU'
 __C.B_VALIDATION = False

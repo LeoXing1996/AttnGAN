@@ -285,7 +285,8 @@ class CA_NET(nn.Module):
         return mu, logvar
 
     def reparametrize(self, mu, logvar):
-        std = logvar.mul(0.5).exp_()
+        # std = logvar.mul(0.5).exp_()
+        std = logvar.mul(0.5).exp()
         if cfg.CUDA:
             eps = torch.cuda.FloatTensor(std.size()).normal_()
         else:
@@ -541,9 +542,12 @@ class D_GET_LOGITS(nn.Module):
         if self.bcondition:
             self.jointConv = Block3x3_leakRelu(ndf * 8 + nef, ndf * 8)
 
+        # move nn.Sigmoid() to `BCELoss`
+        # self.outlogits = nn.Sequential(
+        #     nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=4),
+        #     nn.Sigmoid())
         self.outlogits = nn.Sequential(
-            nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=4),
-            nn.Sigmoid())
+            nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=4))
 
     def forward(self, h_code, c_code=None):
         if self.bcondition and c_code is not None:

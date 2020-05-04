@@ -10,3 +10,5 @@ code/*.bash
 code/*.ipynb
 *.out
 *.ipynb_checkpoints/
+logs
+wandb
