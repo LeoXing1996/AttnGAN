@@ -14,14 +14,16 @@ from miscc.config import cfg
 from miscc.utils import build_super_images2
 from model import RNN_ENCODER, G_NET
 from azure.storage.blob import BlockBlobService
+from werkzeug.contrib.cache import SimpleCache
 
 if sys.version_info[0] == 2:
     import cPickle as pickle
 else:
     import pickle
 
-from werkzeug.contrib.cache import SimpleCache
+
 cache = SimpleCache()
+
 
 def vectorize_caption(wordtoix, caption, copies=2):
     # create caption vector
@@ -45,6 +47,7 @@ def vectorize_caption(wordtoix, caption, copies=2):
 
     return captions.astype(int), cap_lens.astype(int)
 
+
 def generate(caption, wordtoix, ixtoword, text_encoder, netG, blob_service, copies=2):
     # load word vector
     captions, cap_lens  = vectorize_caption(wordtoix, caption, copies)
@@ -63,15 +66,12 @@ def generate(caption, wordtoix, ixtoword, text_encoder, netG, blob_service, copi
         cap_lens = cap_lens.cuda()
         noise = noise.cuda()
 
-    
-
     #######################################################
     # (1) Extract text embeddings
     #######################################################
     hidden = text_encoder.init_hidden(batch_size)
     words_embs, sent_emb = text_encoder(captions, cap_lens, hidden)
     mask = (captions == 0)
-        
 
     #######################################################
     # (2) Generate fake images
@@ -131,7 +131,7 @@ def generate(caption, wordtoix, ixtoword, text_encoder, netG, blob_service, copi
                         im = fake_imgs[k + 1].detach().cpu()
                     else:
                         im = fake_imgs[0].detach().cpu()
-                            
+
                     attn_maps = attention_maps[k]
                     att_sze = attn_maps.size(2)
 
@@ -152,9 +152,10 @@ def generate(caption, wordtoix, ixtoword, text_encoder, netG, blob_service, copi
                         urls.append(full_path % blob_name)
         if copies == 2:
             break
-    
+
     #print(len(urls), urls)
     return urls
+
 
 def word_index():
     ixtoword = cache.get('ixtoword')
@@ -170,6 +171,7 @@ def word_index():
         cache.set('wordtoix', wordtoix, timeout=60 * 60 * 24)
 
     return wordtoix, ixtoword
+
 
 def models(word_len):
     #print(word_len)
@@ -197,6 +199,7 @@ def models(word_len):
 
     return text_encoder, netG
 
+
 def eval(caption):
     # load word dictionaries
     wordtoix, ixtoword = word_index()
@@ -221,9 +224,10 @@ def eval(caption):
 
     return response
 
+
 if __name__ == "__main__":
     caption = "the bird has a yellow crown and a black eyering that is round"
-    
+
     # load configuration
     #cfg_from_file('eval_bird.yml')
     # load word dictionaries
@@ -232,7 +236,7 @@ if __name__ == "__main__":
     text_encoder, netG = models(len(wordtoix))
     # load blob service
     blob_service = BlockBlobService(account_name='attgan', account_key='[REDACTED]')
-    
+
     t0 = time.time()
     urls = generate(caption, wordtoix, ixtoword, text_encoder, netG, blob_service)
     t1 = time.time()

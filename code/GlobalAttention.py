@@ -21,6 +21,9 @@ http://www.aclweb.org/anthology/D15-1166
 import torch
 import torch.nn as nn
 
+torchVersion = float('.'.join(torch.__version__.split('.')[:2]))
+maskType = torch.cuda.BoolTensor if torchVersion >= 1.2 else torch.cuda.ByteTensor
+
 
 def conv1x1(in_planes, out_planes):
     "1x1 convolution with padding"
@@ -48,7 +51,7 @@ def func_attention(query, context, gamma1):
     attn = torch.bmm(contextT, query)  # Eq. (7) in AttnGAN paper
     # --> batch*sourceL x queryL
     attn = attn.view(batch_size*sourceL, queryL)
-    attn = nn.Softmax()(attn)  # Eq. (8)
+    attn = nn.Softmax(dim=1)(attn)  # Eq. (8)
 
     # --> batch x sourceL x queryL
     attn = attn.view(batch_size, sourceL, queryL)
@@ -57,7 +60,7 @@ def func_attention(query, context, gamma1):
     attn = attn.view(batch_size*queryL, sourceL)
     #  Eq. (9)
     attn = attn * gamma1
-    attn = nn.Softmax()(attn)
+    attn = nn.Softmax(dim=1)(attn)
     attn = attn.view(batch_size, queryL, sourceL)
     # --> batch x sourceL x queryL
     attnT = torch.transpose(attn, 1, 2).contiguous()
@@ -73,7 +76,7 @@ class GlobalAttentionGeneral(nn.Module):
     def __init__(self, idf, cdf):
         super(GlobalAttentionGeneral, self).__init__()
         self.conv_context = conv1x1(cdf, idf)
-        self.sm = nn.Softmax()
+        self.sm = nn.Softmax(dim=1)
         self.mask = None
 
     def applyMask(self, mask):
@@ -105,7 +108,8 @@ class GlobalAttentionGeneral(nn.Module):
         if self.mask is not None:
             # batch_size x sourceL --> batch_size*queryL x sourceL
             mask = self.mask.repeat(queryL, 1)
-            attn.data.masked_fill_(mask.type(torch.cuda.BoolTensor), -float('inf'))
+            # attn.data.masked_fill_(mask.type(torch.cuda.BoolTensor), -float('inf'))
+            attn.data.masked_fill_(mask.type(maskType), -float('inf'))
         attn = self.sm(attn)  # Eq. (2)
         # --> batch x queryL x sourceL
         attn = attn.view(batch_size, queryL, sourceL)

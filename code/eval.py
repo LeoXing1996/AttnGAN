@@ -25,12 +25,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train a AttnGAN network')
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file',
-                        default='cfg/bird_attn2.yml', type=str)
+                        default='cfg/eval_bird.yml', type=str)
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=-1)
-    parser.add_argument('--name', type=str)
-    parser.add_argument('--no_time', action='store_true')
-    parser.add_argument('--apex', action='store_true')
-    parser.add_argument('--opt_level', type=str, default='O1')
+    parser.add_argument('--from_text', action='store_true', help='set `B_VALIDATION` to False')
+    parser.add_argument('--text_per_img', type=int, default=1)
+    parser.add_argument('--ckpt_path', type=str)
     parser.add_argument('--data_dir', dest='data_dir', type=str, default='')
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     args = parser.parse_args()
@@ -100,8 +99,13 @@ if __name__ == "__main__":
     if args.data_dir != '':
         cfg.DATA_DIR = args.data_dir
 
-    cfg.APEX = args.apex
-    cfg.OPT_LEVEL = args.opt_level
+    if args.ckpt_path:
+        cfg.TRAIN.NET_G = args.ckpt_path
+
+    if not args.from_text:
+        cfg.B_VALIDATION = True
+
+    cfg.CAP_IN_TEST = args.text_per_img
 
     if not cfg.TRAIN.FLAG:
         args.manualSeed = 100
@@ -113,21 +117,10 @@ if __name__ == "__main__":
     if cfg.CUDA:
         torch.cuda.manual_seed_all(args.manualSeed)
 
-    name = args.name if args.name else cfg.CONFIG_NAME
-    output_dir = '../output/%s_%s' % (cfg.DATASET_NAME, name)
-    if os.path.exists(output_dir) or not args.no_time:
-        now = datetime.datetime.now(dateutil.tz.tzlocal())
-        timestamp = now.strftime('%Y_%m_%d_%H_%M_%S')
-        output_dir += '_' + timestamp
-    cfg.EXP_NAME = output_dir.split('/')[-1]
-
     print('Using config:')
     pprint.pprint(cfg)
 
-    split_dir, bshuffle = 'train', True
-    if not cfg.TRAIN.FLAG:
-        # bshuffle = False
-        split_dir = 'test'
+    split_dir, bshuffle = 'test', True
 
     # Get data loader
     imsize = cfg.TREE.BASE_SIZE * (2 ** (cfg.TREE.BRANCH_NUM - 1))
@@ -143,17 +136,17 @@ if __name__ == "__main__":
         dataset, batch_size=cfg.TRAIN.BATCH_SIZE,
         drop_last=True, shuffle=bshuffle, num_workers=int(cfg.WORKERS))
 
-    # Define models and go to train/evaluate
-    algo = trainer(output_dir, dataloader, dataset.n_words, dataset.ixtoword)
+    # Define models and go to evaluate
+    algo = trainer('', dataloader, dataset.n_words, dataset.ixtoword)
 
     start_t = time.time()
-    if cfg.TRAIN.FLAG:
-        algo.train()
-    else:
-        '''generate images from pre-extracted embeddings'''
+    '''generate images from pre-extracted embeddings'''
+    with torch.no_grad():  # set no grad
         if cfg.B_VALIDATION:
-            algo.sampling(split_dir)  # generate images for the whole valid dataset
+            # generate images for the whole valid dataset
+            algo.sampling(split_dir)
         else:
-            gen_example(dataset.wordtoix, algo)  # generate images for customized captions
+            # generate images for customized captions
+            gen_example(dataset.wordtoix, algo)
     end_t = time.time()
-    print('Total time for training:', end_t - start_t)
+    print('Total time for Evaluating:', end_t - start_t)

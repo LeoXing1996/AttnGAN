@@ -6,6 +6,13 @@ from miscc.config import cfg
 
 from GlobalAttention import func_attention
 
+torchVersion = float('.'.join(torch.__version__.split('.')[:2]))
+
+
+def convert_mask_type(mask_):
+    maskType = torch.BoolTensor if torchVersion >= 1.2 else torch.ByteTensor
+    return maskType(mask_)
+
 
 # ##################Loss for matching text-image###################
 def cosine_similarity(x1, x2, dim=1, eps=1e-8):
@@ -29,7 +36,8 @@ def sent_loss(cnn_code, rnn_code, labels, class_ids,
             masks.append(mask.reshape((1, -1)))
         masks = np.concatenate(masks, 0)
         # masks: batch_size x batch_size
-        masks = torch.BoolTensor(masks)
+        # masks = torch.BoolTensor(masks)
+        masks = convert_mask_type(masks)
         if cfg.CUDA:
             masks = masks.cuda()
 
@@ -116,7 +124,8 @@ def words_loss(img_features, words_emb, labels,
     if class_ids is not None:
         masks = np.concatenate(masks, 0)
         # masks: batch_size x batch_size
-        masks = torch.BoolTensor(masks)
+        # masks = torch.BoolTensor(masks)
+        masks = convert_mask_type(masks)
         if cfg.CUDA:
             masks = masks.cuda()
 

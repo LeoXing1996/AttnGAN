@@ -7,6 +7,8 @@ from __future__ import unicode_literals
 from nltk.tokenize import RegexpTokenizer
 from collections import defaultdict
 from miscc.config import cfg
+from miscc.config import cfg_from_file
+import argparse
 
 import torch
 import torch.utils.data as data
@@ -80,7 +82,7 @@ def get_imgs(img_path, imsize, bbox=None,
         for i in range(cfg.TREE.BRANCH_NUM):
             # print(imsize[i])
             if i < (cfg.TREE.BRANCH_NUM - 1):
-                re_img = transforms.Scale(imsize[i])(img)
+                re_img = transforms.Resize(imsize[i])(img)
             else:
                 re_img = img
             ret.append(normalize(re_img))
@@ -112,7 +114,7 @@ class TextDataset(data.Dataset):
             self.bbox = None
         split_dir = os.path.join(data_dir, split)
 
-        self.filenames, self.captions, self.ixtoword, \
+        self.filenames, self. captions, self.ixtoword, \
             self.wordtoix, self.n_words = self.load_text_data(data_dir, split)
 
         self.class_id = self.load_class_id(split_dir, len(self.filenames))
@@ -129,11 +131,11 @@ class TextDataset(data.Dataset):
         df_filenames = \
             pd.read_csv(filepath, delim_whitespace=True, header=None)
         filenames = df_filenames[1].tolist()
-        print('Total filenames: ', len(filenames), filenames[0])
+        print('Total filenames: ', len(filenames))
         #
         filename_bbox = {img_file[:-4]: [] for img_file in filenames}
         numImgs = len(filenames)
-        for i in range(0, numImgs):  # change `xrange` to `range`
+        for i in range(0, numImgs):
             # bbox = [x-left, y-top, width, height]
             bbox = df_bounding_boxes.iloc[i][1:].tolist()
 
@@ -147,7 +149,8 @@ class TextDataset(data.Dataset):
         for i in range(len(filenames)):
             cap_path = '%s/text/%s.txt' % (data_dir, filenames[i])
             with open(cap_path, "r") as f:
-                captions = f.read().decode('utf8').split('\n')
+                # captions = f.read().decode('utf8').split('\n')
+                captions = f.read().split('\n')
                 cnt = 0
                 for cap in captions:
                     if len(cap) == 0:
@@ -255,7 +258,7 @@ class TextDataset(data.Dataset):
                     class_id = pickle.load(f)
             except UnicodeDecodeError:
                 with open(data_dir + '/class_info.pickle', 'rb') as f:
-                    class_id = pickle.load(f, encoding='latin1')
+                    class_id = pickle.load(f, encoding='bytes')
         else:
             class_id = np.arange(total_num)
         return class_id
@@ -310,6 +313,60 @@ class TextDataset(data.Dataset):
         new_sent_ix = index * self.embeddings_num + sent_ix
         caps, cap_len = self.get_caption(new_sent_ix)
         return imgs, caps, cap_len, cls_id, key
+        # return imgs, caps, cap_len, cls_id, key, new_sent_ix
 
     def __len__(self):
         return len(self.filenames)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Train a AttnGAN network')
+    parser.add_argument('--cfg', dest='cfg_file',
+                        help='optional config file',
+                        default='cfg/bird_attn2.yml', type=str)
+    parser.add_argument('--gpu', dest='gpu_id', type=int, default=-1)
+    parser.add_argument('--name', type=str)
+    parser.add_argument('--no_time', action='store_true')
+    parser.add_argument('--apex', action='store_true')
+    parser.add_argument('--opt_level', type=str, default='O1')
+    parser.add_argument('--data_dir', dest='data_dir', type=str, default='')
+    parser.add_argument('--manualSeed', type=int, help='manual seed')
+    args = parser.parse_args()
+    return args
+
+
+# add to debug
+if __name__ == '__main__':
+    args = parse_args()
+    if args.cfg_file is not None:
+        cfg_from_file(args.cfg_file)
+
+    split_dir, bshuffle = 'train', True
+    if not cfg.TRAIN.FLAG:
+        # bshuffle = False
+        split_dir = 'test'
+
+    imsize = cfg.TREE.BASE_SIZE * (2 ** (cfg.TREE.BRANCH_NUM - 1))
+    image_transform = transforms.Compose([
+        transforms.Resize(int(imsize * 76 / 64)),
+        transforms.RandomCrop(imsize),
+        transforms.RandomHorizontalFlip()])
+    dataset = TextDataset(cfg.DATA_DIR, split_dir,
+                          base_size=cfg.TREE.BASE_SIZE,
+                          transform=image_transform)
+    # embeddings_num = 10
+    for idx in range(10):
+        data_ = dataset[idx]
+        imgs, captions, cap_lens, class_ids, keys = data_
+        # import ipdb
+        # ipdb.set_trace()
+        cap = ' '.join([dataset.ixtoword[int(c)] for c in captions if int(c) != 0])
+        print('Idx: {:2d} File: {} Text: {}'.format(idx, keys.split('/')[0], cap))
+    # change embeddings_num
+    print('dataset.embeddings_num = 1')
+    dataset.embeddings_num = 1
+    for idx in range(10):
+        data_ = dataset[idx]
+        imgs, captions, cap_lens, class_ids, keys, sent_id = data_
+        cap = ' '.join([dataset.ixtoword[int(c)] for c in captions if int(c) != 0])
+        print('Idx: {:2d} File: {} Text: {}'.format(idx, keys.split('/')[0], cap))

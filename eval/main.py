@@ -65,7 +65,7 @@ def get_bird():
 if __name__ == '__main__':
     t0 = time.time()
     tc = TelemetryClient(os.environ["TELEMETRY"])
-    
+
     # gpu based
     cfg.CUDA = os.environ["GPU"].lower() == 'true'
     tc.track_event('container initializing', {"CUDA": str(cfg.CUDA)})

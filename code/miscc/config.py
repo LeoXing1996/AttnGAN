@@ -18,7 +18,8 @@ __C.GPU_ID = 0
 __C.CUDA = True
 __C.WORKERS = 6
 __C.APEX = True  # whether apply mixed precision training
-__C.OPT_LEVEL = 'O1'
+__C.OPT_LEVEL = 'O0'
+__C.CAP_IN_TEST = 1
 
 __C.RNN_TYPE = 'LSTM'   # 'GRU'
 __C.B_VALIDATION = False

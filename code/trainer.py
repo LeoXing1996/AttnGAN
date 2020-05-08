@@ -412,7 +412,7 @@ class condGANTrainer(object):
 
             batch_size = self.batch_size
             nz = cfg.GAN.Z_DIM
-            noise = Variable(torch.FloatTensor(batch_size, nz), volatile=True)
+            noise = Variable(torch.FloatTensor(batch_size, nz))
             noise = noise.cuda()
 
             model_dir = cfg.TRAIN.NET_G
@@ -429,7 +429,7 @@ class condGANTrainer(object):
 
             cnt = 0
 
-            for _ in range(1):  # (cfg.TEXT.CAPTIONS_PER_IMAGE):
+            for _ in range(1):
                 for step, data in enumerate(self.data_loader, 0):
                     cnt += batch_size
                     if step % 100 == 0:

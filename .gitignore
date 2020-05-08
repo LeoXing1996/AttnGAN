@@ -12,3 +12,4 @@ code/*.ipynb
 *.ipynb_checkpoints/
 logs
 wandb
+*/__pycache__/
